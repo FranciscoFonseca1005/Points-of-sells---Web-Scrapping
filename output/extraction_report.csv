@@ -1,0 +1,8 @@
+﻿chain_name,url,status,strategy,store_count,message
+DROGERIA ALEMANA,https://www.tudrogueriavirtual.com/,OK,api_publica_unidrogas,307,
+DROGUERIA INGLESA,https://www.tudrogueriavirtual.com/,OK,api_publica_unidrogas,316,
+DARSALUD,https://darsalud.com/drugstores.html,OK,html_darsalud,32,
+DROGUERIA ANDINA,https://www.tudrogueriavirtual.com/,OK,api_publica_unidrogas,51,
+BOTICA JUNIN,https://www.tudrogueriavirtual.com/,OK,api_publica_unidrogas,2,
+FARMACIA TORRES,https://sucursales.com.co/farmacia-torres/,OK,directorio_paginas_por_ciudad,23,
+ZAPATOCA,https://www.mercadozapatoca.com/puntos-de-venta/,OK,html_tarjetas_con_mapa,18,
