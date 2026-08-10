@@ -150,3 +150,76 @@ def test_generic_adapter_reads_local_business_json_ld() -> None:
             "longitude": -74.05,
         }
     ]
+
+
+def test_generic_adapter_reads_google_mymaps_kml() -> None:
+    url = "https://farmacias911.com.ec/puntos-de-venta/"
+    mid = "1CFA4TWi6veDb8GMu2nnqpc-DUuJf-7wj"
+    kml_url = (
+        "https://www.google.com/maps/d/kml?"
+        f"mid={mid}&forcekml=1"
+    )
+
+    class FakeMyMapsClient(FakeHtmlClient):
+        def __init__(self) -> None:
+            super().__init__(
+                {
+                    url: (
+                        '<iframe src="https://www.google.com/maps/d/embed?'
+                        f'ehbc=2E312F&amp;mid={mid}"></iframe>'
+                    )
+                }
+            )
+            self.text_pages = {
+                kml_url: """
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <kml xmlns="http://www.opengis.net/kml/2.2">
+                      <Document>
+                        <Placemark>
+                          <name>Farmacia 911 Centro</name>
+                          <description><![CDATA[
+                            <div>Av. Principal 123, Guayaquil</div>
+                          ]]></description>
+                          <Point>
+                            <coordinates>-79.9001,-2.1709,0</coordinates>
+                          </Point>
+                        </Placemark>
+                        <Placemark>
+                          <name>Farmacia 911 Norte</name>
+                          <ExtendedData>
+                            <Data name="Dirección">
+                              <value>Av. Norte 456, Guayaquil</value>
+                            </Data>
+                          </ExtendedData>
+                          <Point>
+                            <coordinates>-79.9102,-2.1508,0</coordinates>
+                          </Point>
+                        </Placemark>
+                      </Document>
+                    </kml>
+                """.strip()
+            }
+
+        def get_text(self, text_url: str, accept: str = "") -> str:
+            del accept
+            self.requested_urls.append(text_url)
+            return self.text_pages[text_url]
+
+    client = FakeMyMapsClient()
+    stores = GenericStructuredAdapter().extract(
+        ChainRequest("FARMACIAS 911", url),
+        client,
+    )
+
+    assert len(stores) == 2
+    assert stores[0] == {
+        "chain_name": "FARMACIAS 911",
+        "url": url,
+        "point_of_sale": "Farmacia 911 Centro",
+        "address_text": "Av. Principal 123, Guayaquil",
+        "address_link": "",
+        "latitude": -2.1709,
+        "longitude": -79.9001,
+    }
+    assert stores[1]["address_text"] == "Av. Norte 456, Guayaquil"
+    assert client.requested_urls == [url, kml_url]

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from typing import Any
-from urllib.parse import parse_qs, unquote, urljoin, urlsplit
+from urllib.parse import parse_qs, unquote, urlencode, urljoin, urlsplit
 
 from bs4 import BeautifulSoup, Tag
 
@@ -240,3 +240,172 @@ def iter_json_nodes(value: Any):
     elif isinstance(value, list):
         for child in value:
             yield from iter_json_nodes(child)
+
+
+MYMAPS_HOSTS = {"www.google.com", "google.com"}
+MYMAPS_PATH_MARKER = "/maps/d/"
+
+
+def google_mymaps_mid(url: str) -> str:
+    """Extrae el identificador público ``mid`` de una URL de Google My Maps."""
+
+    cleaned = clean_text(url)
+    parsed = urlsplit(cleaned)
+
+    if parsed.netloc.casefold() not in MYMAPS_HOSTS:
+        return ""
+
+    if MYMAPS_PATH_MARKER not in parsed.path.casefold():
+        return ""
+
+    return clean_text(parse_qs(parsed.query).get("mid", [""])[0])
+
+
+def find_google_mymaps_mid(soup: BeautifulSoup, base_url: str) -> str:
+    """Encuentra un Google My Maps embebido o enlazado en la página."""
+
+    candidates: list[str] = []
+
+    for iframe in soup.find_all("iframe", src=True):
+        candidates.append(urljoin(base_url, clean_text(iframe.get("src"))))
+
+    for anchor in soup.find_all("a", href=True):
+        candidates.append(urljoin(base_url, clean_text(anchor.get("href"))))
+
+    for candidate in candidates:
+        mid = google_mymaps_mid(candidate)
+        if mid:
+            return mid
+
+    return ""
+
+
+def google_mymaps_kml_url(mid: str) -> str:
+    """Construye la exportación KML pública de un mapa de Google My Maps."""
+
+    query = urlencode({"mid": clean_text(mid), "forcekml": "1"})
+    return f"https://www.google.com/maps/d/kml?{query}"
+
+
+def _kml_local_name(tag: str) -> str:
+    return tag.rsplit("}", maxsplit=1)[-1]
+
+
+def _kml_child_text(element: Any, name: str) -> str:
+    for child in list(element):
+        if _kml_local_name(child.tag) == name:
+            return clean_text(child.text)
+    return ""
+
+
+def _kml_descendant_text(element: Any, name: str) -> str:
+    for child in element.iter():
+        if _kml_local_name(child.tag) == name:
+            return clean_text(child.text)
+    return ""
+
+
+def _kml_extended_data(placemark: Any) -> dict[str, str]:
+    values: dict[str, str] = {}
+
+    for element in placemark.iter():
+        local = _kml_local_name(element.tag)
+
+        if local == "Data":
+            key = normalize_identifier(element.attrib.get("name"))
+            value = _kml_descendant_text(element, "value")
+        elif local == "SimpleData":
+            key = normalize_identifier(element.attrib.get("name"))
+            value = clean_text(element.text)
+        else:
+            continue
+
+        if key and value:
+            values[key] = value
+
+    return values
+
+
+def _kml_description_text(value: str) -> str:
+    """Convierte descripciones HTML de My Maps a texto legible."""
+
+    if not value:
+        return ""
+
+    return clean_text(BeautifulSoup(value, "html.parser").get_text(" ", strip=True))
+
+
+def _kml_address(placemark: Any) -> str:
+    extended = _kml_extended_data(placemark)
+
+    for key in (
+        "address",
+        "direccion",
+        "dirección",
+        "dirección completa",
+        "direccion completa",
+        "ubicacion",
+        "ubicación",
+    ):
+        normalized = normalize_identifier(key)
+        if extended.get(normalized):
+            return extended[normalized]
+
+    direct_address = _kml_child_text(placemark, "address")
+    if direct_address:
+        return direct_address
+
+    description = _kml_description_text(_kml_child_text(placemark, "description"))
+    return description
+
+
+def parse_google_mymaps_kml(
+    kml_text: str,
+    *,
+    chain_name: str,
+    source_url: str,
+) -> list[StoreRecord]:
+    """Convierte puntos de un KML de My Maps al contrato de tiendas."""
+
+    from xml.etree import ElementTree as ET
+
+    try:
+        root = ET.fromstring(kml_text)
+    except ET.ParseError as error:
+        raise ValueError("Google My Maps no devolvió KML/XML válido") from error
+
+    stores: list[StoreRecord] = []
+
+    for placemark in root.iter():
+        if _kml_local_name(placemark.tag) != "Placemark":
+            continue
+
+        name = _kml_child_text(placemark, "name")
+        coordinates = _kml_descendant_text(placemark, "coordinates")
+
+        if not name or not coordinates:
+            continue
+
+        first_coordinate = coordinates.split()[0].strip()
+        parts = [part.strip() for part in first_coordinate.split(",")]
+        if len(parts) < 2:
+            continue
+
+        longitude = normalize_coordinate(parts[0], -180.0, 180.0)
+        latitude = normalize_coordinate(parts[1], -90.0, 90.0)
+
+        if latitude == "" or longitude == "":
+            continue
+
+        stores.append(
+            make_record(
+                chain_name=chain_name,
+                source_url=source_url,
+                point_of_sale=name,
+                address_text=_kml_address(placemark),
+                latitude=latitude,
+                longitude=longitude,
+            )
+        )
+
+    return stores

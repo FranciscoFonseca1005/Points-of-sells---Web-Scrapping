@@ -11,9 +11,12 @@ from bs4 import BeautifulSoup
 from src.adapters.base import BaseAdapter, SourceClient
 from src.adapters.common import (
     extract_map_cards,
+    find_google_mymaps_mid,
+    google_mymaps_kml_url,
     is_map_url,
     iter_json_nodes,
     make_record,
+    parse_google_mymaps_kml,
 )
 from src.exceptions import SourceResponseError
 from src.input_reader import ChainRequest
@@ -160,10 +163,27 @@ class GenericStructuredAdapter(BaseAdapter):
             ]
 
         if not stores:
+            mid = find_google_mymaps_mid(soup, chain.url)
+
+            if mid:
+                kml_url = google_mymaps_kml_url(mid)
+                kml_text = client.get_text(
+                    kml_url,
+                    "application/vnd.google-earth.kml+xml, "
+                    "application/xml;q=0.9, text/xml;q=0.8, */*;q=0.7",
+                )
+                stores = parse_google_mymaps_kml(
+                    kml_text,
+                    chain_name=chain.chain_name,
+                    source_url=chain.url,
+                )
+
+        if not stores:
             raise SourceResponseError(
-                "La URL no contiene puntos de venta en JSON-LD ni tarjetas "
-                "con nombre, dirección y mapa. Se requiere diagnosticar esta "
-                "fuente y agregar un adaptador."
+                "La URL no contiene puntos de venta en JSON-LD, tarjetas "
+                "con nombre/dirección/mapa ni un Google My Maps público con "
+                "puntos exportables. Se requiere diagnosticar esta fuente y "
+                "agregar una estrategia."
             )
 
         return stores

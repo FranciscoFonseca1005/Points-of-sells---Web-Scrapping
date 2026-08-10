@@ -19,6 +19,9 @@ class SourceClient(Protocol):
     def get_html(self, url: str) -> str:
         """Consulta una URL y devuelve HTML estático o renderizado."""
 
+    def get_text(self, url: str, accept: str = "text/plain, */*") -> str:
+        """Consulta una URL de texto (XML, KML, CSV, etc.)."""
+
 
 # Alias conservado para no romper importaciones de la primera versión.
 JsonClient = SourceClient

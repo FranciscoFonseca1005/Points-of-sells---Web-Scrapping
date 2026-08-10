@@ -17,7 +17,7 @@ coordenadas ni enlaces.
 | Darsalud | Encabezados y direcciones del HTML | Nombre y dirección |
 | Farmacia Torres | Descubrimiento de páginas por ciudad | Nombre y dirección |
 | Mercado Zapatoca | Tarjetas con enlace explícito de mapa | Nombre, dirección, enlace y coordenadas literales si aparecen en el enlace |
-| URL nueva | JSON-LD o tarjetas inequívocas con mapa | Solo campos publicados de forma estructurada |
+| URL nueva | JSON-LD, tarjetas inequívocas con mapa o Google My Maps público | Solo campos publicados de forma estructurada |
 
 Las marcas de Unidrogas incluidas son:
 
@@ -88,6 +88,7 @@ DROGUERIA ANDINA,https://www.tudrogueriavirtual.com/
 BOTICA JUNIN,https://www.tudrogueriavirtual.com/
 FARMACIA TORRES,https://sucursales.com.co/farmacia-torres/
 ZAPATOCA,https://www.mercadozapatoca.com/puntos-de-venta/
+FARMACIAS 911,https://farmacias911.com.ec/puntos-de-venta/
 ```
 
 Se aceptan mayúsculas, minúsculas y variantes con o sin acentos de las marcas
@@ -150,14 +151,16 @@ CAPTCHA, no evade bloqueos y no inicia sesión.
 Una URL desconocida pasa al adaptador automático. Este reconoce:
 
 - objetos JSON-LD `LocalBusiness`, `Store`, `Pharmacy` y tipos relacionados;
-- tarjetas repetidas con nombre, dirección y un enlace explícito de mapa.
+- tarjetas repetidas con nombre, dirección y un enlace explícito de mapa;
+- Google My Maps públicos embebidos, leyendo sus puntos desde KML.
 
 Si no existe una estructura suficientemente clara, la cadena aparece como
 `ERROR` en `extraction_report.csv`. Esto evita confundir productos, teléfonos,
 direcciones corporativas o contenido del pie de página con sucursales.
 
-En ese caso se diagnostica la nueva fuente y se incorpora un adaptador pequeño
-en `src/adapters/`. No es necesario modificar las demás cadenas.
+En ese caso se diagnostica la nueva fuente y, si el patrón es reutilizable, se
+amplía primero el adaptador genérico. Solo cuando la estructura es exclusiva de
+una cadena se incorpora un adaptador pequeño en `src/adapters/`.
 
 ## Pruebas
 

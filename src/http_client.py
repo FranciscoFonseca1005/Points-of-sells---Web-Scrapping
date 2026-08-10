@@ -143,6 +143,7 @@ class HttpClient:
         self.session.headers.update({"User-Agent": USER_AGENT})
         self._json_cache: dict[str, Any] = {}
         self._html_cache: dict[str, str] = {}
+        self._text_cache: dict[tuple[str, str], str] = {}
         self._renderer: BrowserRenderer | None = None
 
         retries = Retry(
@@ -194,6 +195,25 @@ class HttpClient:
 
         self._json_cache[url] = payload
         return payload
+
+    def get_text(self, url: str, accept: str = "text/plain, */*") -> str:
+        """Obtiene una fuente textual sin asumir que sea HTML o JSON."""
+
+        cache_key = (url, accept)
+        if cache_key in self._text_cache:
+            return self._text_cache[cache_key]
+
+        response = self._get(url, accept)
+
+        if "charset=" not in response.headers.get(
+            "Content-Type",
+            "",
+        ).casefold():
+            response.encoding = response.apparent_encoding
+
+        text = response.text
+        self._text_cache[cache_key] = text
+        return text
 
     def _render_html(self, url: str) -> str:
         if not self.allow_browser:
