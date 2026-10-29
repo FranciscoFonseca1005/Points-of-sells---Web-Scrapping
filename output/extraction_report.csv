@@ -1,0 +1,3 @@
+﻿chain_name,url,status,strategy,store_count,message
+DESCUENTO,https://www.farmaenlace.com/puntos-de-venta/,OK,html_farmaenlace_el_descuento_conservador,4,
+FARMACIAS AMPM - COFASA,https://ampm.cr/ubicaciones/,OK,descubrimiento_automatico_conservador,7,
